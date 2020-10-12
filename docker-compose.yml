@@ -1,0 +1,58 @@
+version: "3"
+services:
+  postgres: # service name
+    image: "postgres:latest" # image from dockerhub
+    environment:
+      - POSTGRES_PASSWORD=postgres_password
+
+  redis:
+    image: "redis:latest"
+
+  nginx:
+    restart: always # if anything crashes, restart this nginx service
+    depends_on:
+      - api
+      - client
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./nginx
+    ports:
+      - "3050:80" # <localhost port>:<nginx port>
+
+  api:
+    depends_on:
+      - postgres
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./server
+    volumes:
+      - /app/node_modules # leave whatever in node_modules as it is, do not need to override
+      - ./server:/app # look at the server folder, copy into the /app folder in the container
+    environment:
+      - REDIS_HOST=redis # redis here is referring to the above redis service name
+      - REDIS_PORT=6379 # default redis port
+      - PG_HOST=postgres
+      - PG_PASSWORD=postgres_password
+      - PG_USER=postgres
+      - PG_DATABASE=postgres
+      - PG_PORT=5432
+
+  client:
+    stdin_open: true # this is due to a create-react-app bug
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./client
+    volumes:
+      - /app/node_modules
+      - ./client:/app
+
+  worker:
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./worker
+    volumes:
+      - /app/node_modules
+      - ./worker:/app
